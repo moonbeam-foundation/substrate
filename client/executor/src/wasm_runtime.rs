@@ -177,8 +177,12 @@ impl RuntimeCache {
 	pub fn new(
 		max_runtime_instances: usize,
 		cache_path: Option<PathBuf>,
-		runtime_cache_size: u8,
+		_runtime_cache_size: u8,
 	) -> RuntimeCache {
+		// Temporarily hardcode this paramater
+		// TODO: found why it's not correctly mapped from cli
+		let runtime_cache_size = 32u8;
+
 		RuntimeCache {
 			runtimes: Mutex::new(LruCache::new(runtime_cache_size.into())),
 			max_runtime_instances,
