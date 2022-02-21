@@ -32,7 +32,7 @@ pub enum Error {
 	#[error("Unknown transaction validity: {0:?}")]
 	UnknownTransaction(UnknownTransaction),
 
-	#[error("Invalid transaction validity: {0:?}")]
+	#[error("Invalid transaction validity: {0}")]
 	InvalidTransaction(InvalidTransaction),
 
 	/// The transaction validity returned no "provides" tag.

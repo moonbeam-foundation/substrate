@@ -95,6 +95,13 @@ impl InvalidTransaction {
 	}
 }
 
+impl core::fmt::Display for InvalidTransaction {
+	fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+		let str_: &'static str = (*self).into();
+		write!(f, "{}", str_)
+	}
+}
+
 impl From<InvalidTransaction> for &'static str {
 	fn from(invalid: InvalidTransaction) -> &'static str {
 		match invalid {
