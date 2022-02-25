@@ -458,7 +458,13 @@ pub enum State {
 		snapshot_path: Option<PathBuf>,
 
 		/// The pallets to scrape. If empty, entire chain state will be scraped.
-		#[clap(short, long, require_delimiter = true)]
+		#[clap(
+			short,
+			long,
+			require_delimiter = true,
+			use_value_delimiter = true,
+			multiple_values = true,
+		)]
 		pallets: Option<Vec<String>>,
 
 		/// Fetch the child-keys as well.
@@ -466,7 +472,12 @@ pub enum State {
 		/// Default is `false`, if specific `pallets` are specified, true otherwise. In other
 		/// words, if you scrape the whole state the child tree data is included out of the box.
 		/// Otherwise, it must be enabled explicitly using this flag.
-		#[clap(long, require_delimiter = true)]
+		#[clap(
+			long,
+			require_delimiter = true,
+			use_value_delimiter = true,
+			multiple_values = true,
+		)]
 		child_tree: bool,
 	},
 }
