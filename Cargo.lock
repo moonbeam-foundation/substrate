@@ -5018,6 +5018,7 @@ dependencies = [
  "pallet-conviction-voting",
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
+ "pallet-election-provider-support-benchmarking",
  "pallet-elections-phragmen",
  "pallet-gilt",
  "pallet-grandpa",
@@ -5871,6 +5872,7 @@ dependencies = [
  "frame-system",
  "log 0.4.14",
  "pallet-balances",
+ "pallet-election-provider-support-benchmarking",
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "rand 0.7.3",
@@ -5884,6 +5886,18 @@ dependencies = [
  "sp-tracing",
  "static_assertions",
  "strum",
+]
+
+[[package]]
+name = "pallet-election-provider-support-benchmarking"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-npos-elections",
+ "sp-runtime",
 ]
 
 [[package]]
