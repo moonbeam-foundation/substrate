@@ -51,7 +51,7 @@ rand = "0.7.2"
 merlin = "2.0"
 thiserror = "1.0"
 retain_mut = "0.1.4"
-async-trait = "0.1.50"
+async-trait = "0.1.53"
 
 [dev-dependencies]
 sp-timestamp = { version = "4.0.0-dev", path = "../../../primitives/timestamp" }
