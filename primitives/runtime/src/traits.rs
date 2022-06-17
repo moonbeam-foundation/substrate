@@ -164,6 +164,55 @@ where
 	}
 }
 
+/// Something that supports background verification.
+pub trait BackgroundVerify: Verify {
+	/// Register a signature for background verification.
+	///
+	/// Returns `true` when the signature was successfully registered for background verification
+	/// or if background verification is not enabled the signature could be verified successfully
+	/// immediately.
+	///
+	/// # Security
+	///
+	/// It is required that this is called in a
+	/// [`BackgroundVerifyContext`](crate::BackgroundVerifyContext) context.
+	fn background_verify<L: Lazy<[u8]>>(
+		&self,
+		msg: L,
+		signer: &<Self::Signer as IdentifyAccount>::AccountId,
+	) -> bool;
+}
+
+impl BackgroundVerify for sp_core::ed25519::Signature {
+	fn background_verify<L: Lazy<[u8]>>(
+		&self,
+		mut msg: L,
+		signer: &<Self::Signer as IdentifyAccount>::AccountId,
+	) -> bool {
+		sp_io::crypto::ed25519_batch_verify(self, msg.get(), signer)
+	}
+}
+
+impl BackgroundVerify for sp_core::sr25519::Signature {
+	fn background_verify<L: Lazy<[u8]>>(
+		&self,
+		mut msg: L,
+		signer: &<Self::Signer as IdentifyAccount>::AccountId,
+	) -> bool {
+		sp_io::crypto::sr25519_batch_verify(self, msg.get(), signer)
+	}
+}
+
+impl BackgroundVerify for sp_core::ecdsa::Signature {
+	fn background_verify<L: Lazy<[u8]>>(
+		&self,
+		mut msg: L,
+		signer: &<Self::Signer as IdentifyAccount>::AccountId,
+	) -> bool {
+		sp_io::crypto::ecdsa_batch_verify(self, msg.get(), signer)
+	}
+}
+
 /// An error type that indicates that the origin is invalid.
 #[derive(Encode, Decode, RuntimeDebug)]
 pub struct BadOrigin;
@@ -767,6 +816,18 @@ pub trait Checkable<Context>: Sized {
 
 	/// Check self, given an instance of Context.
 	fn check(self, c: &Context) -> Result<Self::Checked, TransactionValidityError>;
+}
+
+/// A "checkable" piece of information, used by the standard Substrate Executive in order to
+/// check the validity of a piece of extrinsic information, usually by verifying the signature. Any
+/// signature verification should be done using [`BackgroundVerify`]. Implement for pieces of
+/// information that require some additional `Context` in order to be checked.
+pub trait BackgroundCheckable<Context>: Checkable<Context> {
+	/// Check self in a background tas, given an instance of Context.
+	fn background_check(
+		self,
+		c: &Context,
+	) -> Result<<Self as Checkable<Context>>::Checked, TransactionValidityError>;
 }
 
 /// A "checkable" piece of information, used by the standard Substrate Executive in order to

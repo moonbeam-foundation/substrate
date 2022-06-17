@@ -418,6 +418,36 @@ impl Verify for MultiSignature {
 	}
 }
 
+impl crate::traits::BackgroundVerify for MultiSignature {
+	fn background_verify<L: Lazy<[u8]>>(&self, mut msg: L, signer: &AccountId32) -> bool {
+		match (self, signer) {
+			(Self::Ed25519(ref sig), who) =>
+				if let Ok(pubkey) = ed25519::Public::from_slice(who.as_ref()) {
+					sig.background_verify(msg, &pubkey)
+				} else {
+					false
+				},
+			(Self::Sr25519(ref sig), who) =>
+				if let Ok(pubkey) = sr25519::Public::from_slice(who.as_ref()) {
+					sig.background_verify(msg, &pubkey)
+				} else {
+					false
+				},
+			(Self::Ecdsa(ref sig), who) => {
+				// Unfortunatly, ecdsa signature can't be verified in a background task
+				// because we don't known the public key.
+				let m = sp_io::hashing::blake2_256(msg.get());
+				match sp_io::crypto::secp256k1_ecdsa_recover_compressed(sig.as_ref(), &m) {
+					Ok(pubkey) =>
+						&sp_io::hashing::blake2_256(pubkey.as_ref()) ==
+							<dyn AsRef<[u8; 32]>>::as_ref(who),
+					_ => false,
+				}
+			},
+		}
+	}
+}
+
 /// Signature verify that can work with any known signature types..
 #[derive(Eq, PartialEq, Clone, Default, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -888,18 +918,18 @@ pub fn print(print: impl traits::Printable) {
 	print.print();
 }
 
-/// Batching session.
+/// Background verification context.
 ///
 /// To be used in runtime only. Outside of runtime, just construct
 /// `BatchVerifier` directly.
-#[must_use = "`verify()` needs to be called to finish batch signature verification!"]
-pub struct SignatureBatching(bool);
+#[must_use = "`verify()` needs to be called to finish background verifications!"]
+pub struct BackgroundVerifyContext(bool);
 
-impl SignatureBatching {
-	/// Start new batching session.
+impl BackgroundVerifyContext {
+	/// Start new background verification context.
 	pub fn start() -> Self {
 		sp_io::crypto::start_batch_verify();
-		SignatureBatching(false)
+		BackgroundVerifyContext(false)
 	}
 
 	/// Verify all signatures submitted during the batching session.
@@ -910,14 +940,16 @@ impl SignatureBatching {
 	}
 }
 
-impl Drop for SignatureBatching {
+impl Drop for BackgroundVerifyContext {
 	fn drop(&mut self) {
 		// Sanity check. If user forgets to actually call `verify()`.
 		//
 		// We should not panic if the current thread is already panicking,
 		// because Rust otherwise aborts the process.
 		if !self.0 && !sp_std::thread::panicking() {
-			panic!("Signature verification has not been called before `SignatureBatching::drop`")
+			panic!(
+				"Signature verification has not been called before `BackgroundVerifyContext::drop`"
+			)
 		}
 	}
 }
@@ -1038,7 +1070,7 @@ mod tests {
 		));
 
 		ext.execute_with(|| {
-			let _batching = SignatureBatching::start();
+			let _batching = BackgroundVerifyContext::start();
 			let dummy = UncheckedFrom::unchecked_from([1; 32]);
 			let dummy_sig = UncheckedFrom::unchecked_from([1; 64]);
 			sp_io::crypto::sr25519_verify(&dummy_sig, &Vec::new(), &dummy);
@@ -1054,7 +1086,7 @@ mod tests {
 		));
 
 		ext.execute_with(|| {
-			let _batching = SignatureBatching::start();
+			let _batching = BackgroundVerifyContext::start();
 			panic!("Hey, I'm an error");
 		});
 	}

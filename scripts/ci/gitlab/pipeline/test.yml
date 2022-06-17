@@ -206,6 +206,21 @@ test-frame-examples-compile-to-wasm:
     - cd ../basic
     - cargo +nightly build --target=wasm32-unknown-unknown --no-default-features
 
+test-frame-executive-features-compile-to-wasm:
+  # into one job
+  stage:                           test
+  extends:
+    - .docker-env
+    - .test-refs
+  variables:
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS:                     "-Cdebug-assertions=y"
+    RUST_BACKTRACE: 1
+  script:
+    - cd ./frame/executive
+    - cargo test --no-default-features --features background-signature-verification
+
 test-linux-stable-int:
   stage:                           test
   extends:

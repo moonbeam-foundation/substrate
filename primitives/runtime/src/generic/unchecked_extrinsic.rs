@@ -20,8 +20,8 @@
 use crate::{
 	generic::CheckedExtrinsic,
 	traits::{
-		self, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount, MaybeDisplay, Member,
-		SignedExtension,
+		self, BackgroundCheckable, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount,
+		MaybeDisplay, Member, SignedExtension,
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
 	OpaqueExtrinsic,
@@ -152,6 +152,36 @@ where
 				let signed = lookup.lookup(signed)?;
 				let raw_payload = SignedPayload::new(self.function, extra)?;
 				if !raw_payload.using_encoded(|payload| signature.verify(payload, &signed)) {
+					return Err(InvalidTransaction::BadProof.into())
+				}
+
+				let (function, extra, _) = raw_payload.deconstruct();
+				CheckedExtrinsic { signed: Some((signed, extra)), function }
+			},
+			None => CheckedExtrinsic { signed: None, function: self.function },
+		})
+	}
+}
+
+impl<Address, AccountId, Call, Signature, Extra, Lookup> BackgroundCheckable<Lookup>
+	for UncheckedExtrinsic<Address, Call, Signature, Extra>
+where
+	Address: Member + MaybeDisplay,
+	Call: Encode + Member,
+	Signature: Member + traits::BackgroundVerify,
+	<Signature as traits::Verify>::Signer: IdentifyAccount<AccountId = AccountId>,
+	Extra: SignedExtension<AccountId = AccountId>,
+	AccountId: Member + MaybeDisplay,
+	Lookup: traits::Lookup<Source = Address, Target = AccountId>,
+{
+	fn background_check(self, lookup: &Lookup) -> Result<Self::Checked, TransactionValidityError> {
+		Ok(match self.signature {
+			Some((signed, signature, extra)) => {
+				let signed = lookup.lookup(signed)?;
+				let raw_payload = SignedPayload::new(self.function, extra)?;
+				if !raw_payload
+					.using_encoded(|payload| signature.background_verify(payload, &signed))
+				{
 					return Err(InvalidTransaction::BadProof.into())
 				}
 

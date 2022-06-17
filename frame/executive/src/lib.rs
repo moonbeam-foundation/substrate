@@ -125,10 +125,14 @@ use frame_support::{
 	},
 	weights::{DispatchClass, DispatchInfo, GetDispatchInfo},
 };
+#[cfg(not(feature = "background-signature-verification"))]
+use sp_runtime::traits::Checkable;
+#[cfg(feature = "background-signature-verification")]
+use sp_runtime::traits::{BackgroundCheckable as Checkable, Checkable as _};
 use sp_runtime::{
 	generic::Digest,
 	traits::{
-		self, Applyable, CheckEqual, Checkable, Dispatchable, Header, NumberFor, One, Saturating,
+		self, Applyable, CheckEqual, Dispatchable, Header, NumberFor, One, Saturating,
 		ValidateUnsigned, Zero,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
@@ -136,7 +140,7 @@ use sp_runtime::{
 };
 use sp_std::{marker::PhantomData, prelude::*};
 
-pub type CheckedOf<E, C> = <E as Checkable<C>>::Checked;
+pub type CheckedOf<E, C> = <E as sp_runtime::traits::Checkable<C>>::Checked;
 pub type CallOf<E, C> = <CheckedOf<E, C> as Applyable>::Call;
 pub type OriginOf<E, C> = <CallOf<E, C> as Dispatchable>::Origin;
 
@@ -235,9 +239,19 @@ where
 		Self::initialize_block(block.header());
 		Self::initial_checks(&block);
 
-		let (header, extrinsics) = block.deconstruct();
+		#[cfg(feature = "background-signature-verification")]
+		let signature_batching = sp_runtime::BackgroundVerifyContext::start();
 
-		Self::execute_extrinsics_with_book_keeping(extrinsics, *header.number());
+		let (header, extrinsics) = block.deconstruct();
+		let checked_extrinsics = check_extrinsics(extrinsics);
+
+		Self::execute_checked_extrinsics_with_book_keeping(checked_extrinsics, *header.number());
+
+		// ensure that all background checks have been completed successfully.
+		#[cfg(feature = "background-signature-verification")]
+		if !signature_batching.verify() {
+			panic!("Signature verification failed.");
+		}
 
 		// do some of the checks that would normally happen in `final_checks`, but definitely skip
 		// the state root check.
@@ -351,6 +365,27 @@ where
 		}
 	}
 
+	fn check_extrinsics(
+		extrinsics: Vec<Block::Extrinsic>,
+	) -> impl Iterator<Item = (CheckedOf<Block::Extrinsic, Context>, Vec<u8>)> {
+		extrinsics.into_iter().map(|extrinsic| {
+			let encoded = extrinsic.encode();
+
+			#[cfg(feature = "background-signature-verification")]
+			let checked_extrinsic = extrinsic.background_check(&Default::default());
+			#[cfg(not(feature = "background-signature-verification"))]
+			let checked_extrinsic = extrinsic.check(&Default::default());
+
+			match checked_extrinsic {
+				Ok(checked_extrinsic) => (checked_extrinsic, encoded),
+				Err(e) => {
+					let err: &'static str = e.into();
+					panic!("{}", err)
+				},
+			}
+		})
+	}
+
 	/// Actually execute all transitions for `block`.
 	pub fn execute_block(block: Block) {
 		sp_io::init_tracing();
@@ -362,12 +397,18 @@ where
 			// any initial checks
 			Self::initial_checks(&block);
 
-			let signature_batching = sp_runtime::SignatureBatching::start();
+			#[cfg(feature = "background-signature-verification")]
+			let signature_batching = sp_runtime::BackgroundVerifyContext::start();
+
+			// check extrinsics in background
+			let (header, extrinsics) = block.deconstruct();
+			let checked_extrinsics = Self::check_extrinsics(extrinsics);
 
 			// execute extrinsics
-			let (header, extrinsics) = block.deconstruct();
-			Self::execute_extrinsics_with_book_keeping(extrinsics, *header.number());
+			Self::execute_checked_extrinsics_with_book_keeping(checked_extrinsics, *header.number());
 
+			// ensure that all background checks have been completed successfully.
+			#[cfg(feature = "background-signature-verification")]
 			if !signature_batching.verify() {
 				panic!("Signature verification failed.");
 			}
@@ -377,13 +418,15 @@ where
 		}
 	}
 
-	/// Execute given extrinsics and take care of post-extrinsics book-keeping.
-	fn execute_extrinsics_with_book_keeping(
-		extrinsics: Vec<Block::Extrinsic>,
+	/// Execute given checked extrinsics and take care of post-extrinsics book-keeping.
+	fn execute_checked_extrinsics_with_book_keeping(
+		checked_extrinsics: impl Iterator<Item = (CheckedOf<Block::Extrinsic, Context>, Vec<u8>)>,
 		block_number: NumberFor<Block>,
 	) {
-		extrinsics.into_iter().for_each(|e| {
-			if let Err(e) = Self::apply_extrinsic(e) {
+		checked_extrinsics.for_each(|(checked_extrinsic, unchecked_extrinsic_encoded)| {
+			if let Err(e) =
+				Self::apply_extrinsic_with_len(checked_extrinsic, unchecked_extrinsic_encoded)
+			{
 				let err: &'static str = e.into();
 				panic!("{}", err)
 			}
@@ -431,34 +474,37 @@ where
 	///
 	/// This doesn't attempt to validate anything regarding the block, but it builds a list of uxt
 	/// hashes.
-	pub fn apply_extrinsic(uxt: Block::Extrinsic) -> ApplyExtrinsicResult {
+	pub fn apply_extrinsic(unchecked_extrinsic: Block::Extrinsic) -> ApplyExtrinsicResult {
 		sp_io::init_tracing();
-		let encoded = uxt.encode();
-		let encoded_len = encoded.len();
-		Self::apply_extrinsic_with_len(uxt, encoded_len, encoded)
+		let unchecked_extrinsic_encoded = unchecked_extrinsic.encode();
+
+		// Verify that the signature is good.
+		let checked_extrinsic = unchecked_extrinsic.check(&Default::default())?;
+
+		Self::apply_extrinsic_with_len(checked_extrinsic, unchecked_extrinsic_encoded)
 	}
 
 	/// Actually apply an extrinsic given its `encoded_len`; this doesn't note its hash.
 	fn apply_extrinsic_with_len(
-		uxt: Block::Extrinsic,
-		encoded_len: usize,
-		to_note: Vec<u8>,
+		checked_extrinsic: CheckedOf<Block::Extrinsic, Context>,
+		unchecked_extrinsic_encoded: Vec<u8>,
 	) -> ApplyExtrinsicResult {
 		sp_tracing::enter_span!(sp_tracing::info_span!("apply_extrinsic",
-				ext=?sp_core::hexdisplay::HexDisplay::from(&uxt.encode())));
-		// Verify that the signature is good.
-		let xt = uxt.check(&Default::default())?;
+				ext=?sp_core::hexdisplay::HexDisplay::from(&unchecked_extrinsic_encoded)));
+
+		let encoded_len = unchecked_extrinsic_encoded.len();
 
 		// We don't need to make sure to `note_extrinsic` only after we know it's going to be
 		// executed to prevent it from leaking in storage since at this point, it will either
 		// execute or panic (and revert storage changes).
-		<frame_system::Pallet<System>>::note_extrinsic(to_note);
+		<frame_system::Pallet<System>>::note_extrinsic(unchecked_extrinsic_encoded);
 
 		// AUDIT: Under no circumstances may this function panic from here onwards.
 
 		// Decode parameters and dispatch
-		let dispatch_info = xt.get_dispatch_info();
-		let r = Applyable::apply::<UnsignedValidator>(xt, &dispatch_info, encoded_len)?;
+		let dispatch_info = checked_extrinsic.get_dispatch_info();
+		let r =
+			Applyable::apply::<UnsignedValidator>(checked_extrinsic, &dispatch_info, encoded_len)?;
 
 		<frame_system::Pallet<System>>::note_applied_extrinsic(&r, dispatch_info);
 
