@@ -243,7 +243,7 @@ where
 		let signature_batching = sp_runtime::BackgroundVerifyContext::start();
 
 		let (header, extrinsics) = block.deconstruct();
-		let checked_extrinsics = check_extrinsics(extrinsics);
+		let checked_extrinsics = Self::check_extrinsics(extrinsics);
 
 		Self::execute_checked_extrinsics_with_book_keeping(checked_extrinsics, *header.number());
 
