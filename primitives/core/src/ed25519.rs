@@ -597,6 +597,42 @@ mod test {
 	}
 
 	#[test]
+	fn test_zeroes() {
+		let signature = hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+		let signature = Signature::from_raw(signature);
+		let public = Public::from_raw(hex!(
+			"0000000000000000000000000000000000000000000000000000000000000000"
+		));
+		let message = hex!("1159cf060f249E0474d1C7");
+		assert!(Pair::verify(&signature, &message[..], &public));
+	}
+
+	#[test]
+	fn test_invalid_sig() {
+
+		// @ crowdloan rewards, we call change_association_with_relay_keys with:
+		//     * reward_account: 0x7457667ee63BCa3c134f246af687091e7E259Bc2
+		//     * previous_account: 0x2A1778b0BCFD8720FB4Ab6c7Ac549D345CDdbc6a
+		//     * relay_chain_account_id: 0xd42f6b436284c6fd6bdc0b642a1778b0bcfd8720fb4ab6c7ac549d345cddbc6a
+		//     * signature:
+		//         * Ed25519
+		//         * 0xe26a2e672c7709bdc8982a9edfda890013c40f808355957c42c1eabe0853c71510b81ef7efa5f55140d988dbd96038969e40c3585cf75abb28edff3a25a29888
+		//
+		// we invoke substrate's verify fn with:
+		//     * signature (as above)
+		//     * payload.as_slice() - payload = reward_account.encode().append(previous_account.encode())
+		//     * relay_account
+
+		let signature = hex!("e26a2e672c7709bdc8982a9edfda890013c40f808355957c42c1eabe0853c71510b81ef7efa5f55140d988dbd96038969e40c3585cf75abb28edff3a25a29888");
+		let signature = Signature::from_raw(signature);
+		let public = Public::from_raw(hex!(
+			"d42f6b436284c6fd6bdc0b642a1778b0bcfd8720fb4ab6c7ac549d345cddbc6a"
+		));
+		let message = hex!("7457667ee63BCa3c134f246af687091e7E259Bc22A1778b0BCFD8720FB4Ab6c7Ac549D345CDdbc6a");
+		assert!(false == Pair::verify(&signature, &message[..], &public));
+	}
+
+	#[test]
 	fn test_vector_by_string_should_work() {
 		let pair = Pair::from_string(
 			"0x9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
