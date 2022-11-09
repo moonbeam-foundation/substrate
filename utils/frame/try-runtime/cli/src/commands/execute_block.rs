@@ -152,10 +152,12 @@ where
 	let block_ws_uri = command.block_ws_uri::<Block>();
 	let block_at = command.block_at::<Block>(block_ws_uri.clone()).await?;
 	let rpc = ws_client(&block_ws_uri).await?;
-	let block: Block = ChainApi::<(), Block::Hash, Block::Header, _>::block(&rpc, Some(block_at))
-		.await
-		.unwrap()
-		.unwrap();
+	let signed_block: sp_runtime::generic::SignedBlock<Block> =
+		ChainApi::<(), Block::Hash, Block::Header, _>::block(&rpc, Some(block_at))
+			.await
+			.unwrap()
+			.unwrap();
+	let block = signed_block.block;
 	let parent_hash = block.header().parent_hash();
 	log::info!(
 		target: LOG_TARGET,
@@ -212,6 +214,7 @@ where
 		"TryRuntime_execute_block",
 		&payload,
 		full_extensions(),
+		shared.export_proof,
 	)?;
 
 	log::info!(target: LOG_TARGET, "Core_execute_block executed without errors.");
