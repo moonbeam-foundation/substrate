@@ -132,7 +132,7 @@
 //! added, given the right flag:
 //!
 //! ```ignore
-//!
+//! 
 //! #[cfg(feature = try-runtime)]
 //! fn pre_upgrade() -> Result<Vec<u8>, &'static str> {}
 //!
@@ -843,7 +843,8 @@ pub(crate) fn state_machine_call_with_proof<Block: BlockT, D: NativeExecutionDis
 fn storage_proof_to_raw_json(storage_proof: &sp_state_machine::StorageProof) -> String {
 	serde_json::Value::Object(
 		storage_proof
-			.to_memory_db::<sp_runtime::traits::BlakeTwo256>()
+			.clone()
+			.into_memory_db::<sp_runtime::traits::BlakeTwo256>()
 			.drain()
 			.iter()
 			.map(|(key, (value, _n))| {
