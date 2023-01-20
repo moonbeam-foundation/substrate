@@ -34,7 +34,7 @@ sp-runtime = { version = "6.0.0", path = "../../../primitives/runtime" }
 sp-keystore = { version = "0.12.0", path = "../../../primitives/keystore" }
 sc-telemetry = { version = "4.0.0-dev", path = "../../telemetry" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", path = "../../../utils/prometheus", version = "0.10.0-dev" }
-async-trait = "0.1.50"
+async-trait = "0.1.62"
 
 [dev-dependencies]
 sp-timestamp = { version = "4.0.0-dev", path = "../../../primitives/timestamp" }

@@ -29,7 +29,7 @@ sp-api = { version = "4.0.0-dev", path = "../../../primitives/api" }
 parking_lot = "0.12.0"
 serde = { version = "1.0", features = ["derive"] }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", path = "../../../utils/prometheus", version = "0.10.0-dev" }
-async-trait = "0.1.42"
+async-trait = "0.1.62"
 
 [dev-dependencies]
 sp-test-primitives = { version = "2.0.0", path = "../../../primitives/test-primitives" }
