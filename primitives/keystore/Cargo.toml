@@ -13,7 +13,7 @@ documentation = "https://docs.rs/sp-core"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-async-trait = "0.1.50"
+async-trait = "0.1.63"
 futures = "0.3.21"
 parking_lot = { version = "0.12.0", default-features = false }
 serde = { version = "1.0", optional = true }
