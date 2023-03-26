@@ -474,7 +474,7 @@ where
 						amount: 1,
 						nonce,
 					};
-					builder.push(transfer.into_signed_tx()).unwrap();
+					builder.push(transfer.into_signed_tx(), None).unwrap();
 					nonce += 1;
 					builder.build().unwrap().block
 				},
@@ -502,7 +502,9 @@ where
 		new_authorities: Vec<AuthorityId>,
 	) -> Vec<H256> {
 		self.generate_blocks(1, BlockOrigin::File, |mut builder| {
-			builder.push(Extrinsic::AuthoritiesChange(new_authorities.clone())).unwrap();
+			builder
+				.push(Extrinsic::AuthoritiesChange(new_authorities.clone()), None)
+				.unwrap();
 			builder.build().unwrap().block
 		})
 	}

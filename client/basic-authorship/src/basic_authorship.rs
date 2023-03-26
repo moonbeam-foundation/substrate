@@ -355,8 +355,16 @@ where
 			);
 		});
 
+		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
+
+		let ensure_block_limit = if self.include_proof_in_block_size_estimation {
+			Some((true, block_size_limit))
+		} else {
+			None
+		};
+
 		for inherent in inherents {
-			match block_builder.push(inherent) {
+			match block_builder.push(inherent, ensure_block_limit) {
 				Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 					warn!("⚠️  Dropping non-mandatory inherent from overweight block.")
 				},
@@ -399,8 +407,6 @@ where
 				self.transaction_pool.ready()
 			},
 		};
-
-		let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 
 		debug!("Attempting to push transactions from the pool.");
 		debug!("Pool status: {:?}", self.transaction_pool.status());
@@ -451,7 +457,11 @@ where
 			}
 
 			trace!("[{:?}] Pushing to the block.", pending_tx_hash);
-			match sc_block_builder::BlockBuilder::push(&mut block_builder, pending_tx_data) {
+			match sc_block_builder::BlockBuilder::push(
+				&mut block_builder,
+				pending_tx_data,
+				ensure_block_limit,
+			) {
 				Ok(()) => {
 					transaction_pushed = true;
 					debug!("[{:?}] Pushed to the block.", pending_tx_hash);
