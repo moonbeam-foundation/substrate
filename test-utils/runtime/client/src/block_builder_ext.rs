@@ -52,7 +52,7 @@ where
 		&mut self,
 		transfer: substrate_test_runtime::Transfer,
 	) -> Result<(), sp_blockchain::Error> {
-		self.push(transfer.into_signed_tx())
+		self.push(transfer.into_signed_tx(), None)
 	}
 
 	fn push_storage_change(
@@ -60,6 +60,6 @@ where
 		key: Vec<u8>,
 		value: Option<Vec<u8>>,
 	) -> Result<(), sp_blockchain::Error> {
-		self.push(substrate_test_runtime::Extrinsic::StorageChange(key, value))
+		self.push(substrate_test_runtime::Extrinsic::StorageChange(key, value), None)
 	}
 }
