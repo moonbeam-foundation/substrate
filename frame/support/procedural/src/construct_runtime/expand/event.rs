@@ -164,5 +164,16 @@ fn expand_event_conversion(
 				}
 			}
 		}
+		#attr
+		impl #scrate::traits::IsSubType<#pallet_event> for RuntimeEvent {
+			#[allow(unreachable_patterns)]
+			fn is_sub_type(&self) -> Option<&#pallet_event> {
+				match self {
+					RuntimeEvent::#variant_name(evt) => Some(evt),
+					// May be unreachable
+					_ => None,
+				}
+			}
+		}
 	}
 }
