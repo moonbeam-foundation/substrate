@@ -367,7 +367,7 @@ where
 		};
 
 		for inherent in inherents {
-			match block_builder.push(inherent, ensure_block_limit) {
+			match block_builder.push(inherent, None) {
 				Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 					warn!("⚠️  Dropping non-mandatory inherent from overweight block.")
 				},
