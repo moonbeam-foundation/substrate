@@ -279,6 +279,18 @@ fn generate_runtime_api_base_structures() -> Result<TokenStream> {
 				std::clone::Clone::clone(&self.recorder)
 			}
 
+			fn merge_proof(&mut self, recorder: #crate_::ProofRecorder<Block>) {
+				if let std::option::Option::Some(ref mut recorder_) = self.recorder {
+					recorder_.merge(recorder);
+				} else {
+					self.recorder = std::option::Option::Some(recorder);
+				}
+			}
+
+			fn rollback_proof(&mut self, recorder: #crate_::ProofRecorder<Block>) {
+				self.recorder = std::option::Option::Some(recorder);
+			}
+
 			fn extract_proof(
 				&mut self,
 			) -> std::option::Option<#crate_::StorageProof> {

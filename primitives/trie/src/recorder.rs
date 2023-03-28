@@ -135,6 +135,49 @@ impl<H: Hasher> Recorder<H> {
 		mem::take(&mut *self.inner.lock());
 		self.encoded_size_estimation.store(0, Ordering::Relaxed);
 	}
+
+	pub fn merge(&mut self, mut other: Self) {
+		// merge encoded_size_estimation
+		let other_encoded_size_estimation = other.encoded_size_estimation.load(Ordering::Relaxed);
+		self.encoded_size_estimation
+			.fetch_add(other_encoded_size_estimation, Ordering::Relaxed);
+		// merge inner
+		mem::swap(self, &mut other);
+		match Arc::try_unwrap(other.inner) {
+			Ok(inner) => {
+				// Merge accessed_nodes by move
+				let inner = inner.into_inner();
+				let mut new_inner = self.inner.lock();
+				for (k, v) in inner.accessed_nodes {
+					new_inner.accessed_nodes.insert(k, v);
+				}
+				// Merge recorded_keys by move
+				for (hash, map) in inner.recorded_keys {
+					for (k, v) in map {
+						new_inner
+							.recorded_keys
+							.entry(hash)
+							.or_default()
+							.insert(k.clone(), v.clone());
+					}
+				}
+			},
+			Err(other_inner) => {
+				// Merge accessed_nodes by move
+				let mut new_inner = self.inner.lock();
+				let inner = other_inner.lock();
+				for (k, v) in &inner.accessed_nodes {
+					new_inner.accessed_nodes.insert(*k, v.clone());
+				}
+				// Merge recorded_keys by clone
+				for (hash, map) in &inner.recorded_keys {
+					for (k, v) in map {
+						new_inner.recorded_keys.entry(*hash).or_default().insert(k.clone(), *v);
+					}
+				}
+			},
+		}
+	}
 }
 
 /// The [`TrieRecorder`](trie_db::TrieRecorder) implementation.
