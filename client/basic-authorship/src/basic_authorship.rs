@@ -33,7 +33,11 @@ use sc_client_api::backend;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ProvideRuntimeApi};
-use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
+use sp_blockchain::{
+	ApplyExtrinsicFailed::{TooBigStorageProof, Validity},
+	Error::ApplyExtrinsicFailed,
+	HeaderBackend,
+};
 use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, Proposal};
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
@@ -403,6 +407,7 @@ where
 		let block_timer = time::Instant::now();
 		let mut skipped = 0;
 		let mut unqueue_invalid = Vec::new();
+		let mut suspicious_txs = Vec::new();
 
 		let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
 		let mut t2 =
@@ -458,6 +463,11 @@ where
 					Ok(()) => {
 						transaction_pushed = true;
 						debug!("[{:?}] Pushed to the block.", pending_tx_hash);
+					},
+					Err(ApplyExtrinsicFailed(TooBigStorageProof(_, _))) => {
+						pending_iterator.report_invalid(&pending_tx);
+						// Mark tx as suspicious
+						suspicious_txs.push(pending_tx_hash);
 					},
 					Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
 						pending_iterator.report_invalid(&pending_tx);
@@ -515,6 +525,12 @@ where
 				}
 			}
 		};
+
+		if matches!(end_reason, EndProposingReason::HitDeadline) && !transaction_pushed {
+			warn!("Hit deadline `{}` without including any transaction!", block_size_limit,);
+			// If we hits the hard deadline but the block still empty, we ban suspicious txs
+			self.transaction_pool.remove_invalid(&suspicious_txs);
+		}
 
 		if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
 			warn!(
