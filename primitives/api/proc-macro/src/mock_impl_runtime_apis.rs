@@ -114,6 +114,14 @@ fn implement_common_api_traits(block_type: TypePath, self_ty: Type) -> Result<To
 				unimplemented!("`proof_recorder` not implemented for runtime api mocks")
 			}
 
+			fn merge_proof(&mut self, _: #crate_::ProofRecorder<Block>) {
+				unimplemented!("`merge_proof` not implemented for runtime api mocks")
+			}
+
+			fn rollback_proof(&mut self, _: #crate_::ProofRecorder<Block>) {
+				unimplemented!("`rollback_proof` not implemented for runtime api mocks")
+			}
+
 			fn into_storage_changes(
 				&self,
 				_: &Self::StateBackend,

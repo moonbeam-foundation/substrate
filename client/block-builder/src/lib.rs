@@ -37,6 +37,7 @@ use sp_runtime::{
 	generic::BlockId,
 	legacy,
 	traits::{Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
+	transaction_validity::{InvalidTransaction, TransactionValidityError},
 	Digest,
 };
 
@@ -203,12 +204,30 @@ where
 	/// Push onto the block's list of extrinsics.
 	///
 	/// This will ensure the extrinsic can be validly executed (by executing it).
-	pub fn push(&mut self, xt: <Block as BlockT>::Extrinsic) -> Result<(), Error> {
+	/// If `ensure_proof_limit` is provided, this function will ensure that the execution
+	/// of this extrinsic will not accrue the proof size more than the provided limit.
+	pub fn push(
+		&mut self,
+		xt: <Block as BlockT>::Extrinsic,
+		ensure_proof_limit: Option<usize>,
+	) -> Result<(), Error> {
 		let block_id = &self.block_id;
 		let extrinsics = &mut self.extrinsics;
 		let version = self.version;
 
-		self.api.execute_in_transaction(|api| {
+		let proof_recorder = if ensure_proof_limit.is_some() {
+			// Take a copy of the proof recorder
+			let proof_recorder = self.api.proof_recorder();
+			if proof_recorder.is_some() {
+				// Reset the proof recorder
+				self.api.record_proof();
+			}
+			proof_recorder
+		} else {
+			None
+		};
+
+		let outer_res = self.api.execute_in_transaction(|api| {
 			let res = if version < 6 {
 				#[allow(deprecated)]
 				api.apply_extrinsic_before_version_6_with_context(
@@ -227,6 +246,25 @@ where
 
 			match res {
 				Ok(Ok(_)) => {
+					// Verify that the transaction exectuion was not exhaust the proof size limit
+					if let Some(proof_diff_limit) = ensure_proof_limit {
+						let proof_diff =
+							api.proof_recorder().map(|pr| pr.estimate_encoded_size()).unwrap_or(0);
+
+						if proof_diff > proof_diff_limit {
+							// The execution of the transaction results in exceeding the limits,
+							// we should rollback and return the error
+							// `InvalidTransaction::ExhaustsResources`.
+							return TransactionOutcome::Rollback(Err(
+								ApplyExtrinsicFailed::Validity(TransactionValidityError::Invalid(
+									InvalidTransaction::ExhaustsResources,
+								))
+								.into(),
+							))
+						}
+					}
+					// The transaction is effectively committed only if the result of its execution
+					// does not exceed the limits
 					extrinsics.push(xt);
 					TransactionOutcome::Commit(Ok(()))
 				},
@@ -235,7 +273,27 @@ where
 				)),
 				Err(e) => TransactionOutcome::Rollback(Err(Error::from(e))),
 			}
-		})
+		});
+
+		if ensure_proof_limit.is_some() {
+			// Commit or rollback the storage proof changes
+			match outer_res {
+				Ok(()) => {
+					if let Some(proof) = proof_recorder {
+						self.api.merge_proof(proof);
+					}
+					Ok(())
+				},
+				Err(e) => {
+					if let Some(proof) = proof_recorder {
+						self.api.rollback_proof(proof);
+					}
+					Err(e)
+				},
+			}
+		} else {
+			outer_res
+		}
 	}
 
 	/// Consume the builder to build a valid `Block` containing all pushed extrinsics.

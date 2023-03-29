@@ -571,6 +571,12 @@ pub trait ApiExt<Block: BlockT> {
 	/// Returns the current active proof recorder.
 	fn proof_recorder(&self) -> Option<ProofRecorder<Block>>;
 
+	/// Returns the current active proof recorder with another one
+	fn merge_proof(&mut self, recorder: ProofRecorder<Block>);
+
+	/// Replace the current active proof recorder by another one
+	fn rollback_proof(&mut self, recorder: ProofRecorder<Block>);
+
 	/// Convert the api object into the storage changes that were done while executing runtime
 	/// api functions.
 	///
