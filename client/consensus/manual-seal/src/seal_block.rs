@@ -88,7 +88,7 @@ pub async fn seal_block<B, BI, SC, C, E, TP, CIDP, P>(
 	SC: SelectChain<B>,
 	TransactionFor<C, B>: 'static,
 	CIDP: CreateInherentDataProviders<B, ()>,
-	P: Send + Sync + 'static,
+	P: codec::Encode + Send + Sync + 'static,
 {
 	let future = async {
 		if pool.status().ready == 0 && !create_empty {
@@ -136,6 +136,7 @@ pub async fn seal_block<B, BI, SC, C, E, TP, CIDP, P>(
 
 		let (header, body) = proposal.block.deconstruct();
 		let proof = proposal.proof;
+		let proof_size = proof.encoded_size();
 		let mut params = BlockImportParams::new(BlockOrigin::Own, header.clone());
 		params.body = Some(body);
 		params.finalized = finalize;
@@ -155,7 +156,7 @@ pub async fn seal_block<B, BI, SC, C, E, TP, CIDP, P>(
 
 		match block_import.import_block(params).await? {
 			ImportResult::Imported(aux) =>
-				Ok(CreatedBlock { hash: <B as BlockT>::Header::hash(&post_header), aux }),
+				Ok(CreatedBlock { hash: <B as BlockT>::Header::hash(&post_header), aux, proof_size }),
 			other => Err(other.into()),
 		}
 	};
