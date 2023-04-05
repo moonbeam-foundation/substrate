@@ -158,7 +158,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
 
 	/// Enable an additional check after each extrinsic that ensure the proof size limit.
 	pub fn enable_ensure_proof_size_limit_after_each_extrinsic(&mut self) {
-		self.include_proof_in_block_size_estimation = true;
+		self.ensure_proof_size_limit_after_each_extrinsic = true;
 	}
 }
 
