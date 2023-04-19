@@ -36,6 +36,7 @@ use sp_core::ExecutionContext;
 use sp_runtime::{
 	legacy,
 	traits::{Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
+	transaction_validity::{InvalidTransaction, TransactionValidityError},
 	Digest,
 };
 
@@ -201,7 +202,13 @@ where
 	/// Push onto the block's list of extrinsics.
 	///
 	/// This will ensure the extrinsic can be validly executed (by executing it).
-	pub fn push(&mut self, xt: <Block as BlockT>::Extrinsic) -> Result<(), Error> {
+	/// If `ensure_proof_limit` is provided, this function will ensure that the execution
+	/// of this extrinsic will not accrue the proof size more than the provided limit.
+	pub fn push(
+		&mut self,
+		xt: <Block as BlockT>::Extrinsic,
+		ensure_proof_limit: Option<usize>,
+	) -> Result<(), Error> {
 		let parent_hash = self.parent_hash;
 		let extrinsics = &mut self.extrinsics;
 		let version = self.version;
@@ -225,6 +232,25 @@ where
 
 			match res {
 				Ok(Ok(_)) => {
+					// Verify that the transaction exectuion was not exhaust the proof size limit
+					if let Some(proof_diff_limit) = ensure_proof_limit {
+						let proof_diff =
+							api.proof_recorder().map(|pr| pr.estimate_encoded_size()).unwrap_or(0);
+
+						if proof_diff > proof_diff_limit {
+							// The execution of the transaction results in exceeding the limits,
+							// we should rollback and return the error
+							// `InvalidTransaction::ExhaustsResources`.
+							return TransactionOutcome::Rollback(Err(
+								ApplyExtrinsicFailed::Validity(TransactionValidityError::Invalid(
+									InvalidTransaction::ExhaustsResources,
+								))
+								.into(),
+							))
+						}
+					}
+					// The transaction is effectively committed only if the result of its execution
+					// does not exceed the limits
 					extrinsics.push(xt);
 					TransactionOutcome::Commit(Ok(()))
 				},
