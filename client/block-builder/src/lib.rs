@@ -211,6 +211,8 @@ where
 		let parent_hash = self.parent_hash;
 		let extrinsics = &mut self.extrinsics;
 		let version = self.version;
+		let proof_before = self
+			.api.proof_recorder().map(|pr| pr.estimate_encoded_size()).unwrap_or(0);
 
 		self.api.execute_in_transaction(|api| {
 			let res = if version < 6 {
@@ -233,8 +235,9 @@ where
 				Ok(Ok(_)) => {
 					// Verify that the transaction exectuion was not exhaust the proof size limit
 					if let Some(proof_diff_limit) = ensure_proof_limit {
-						let proof_diff =
+						let proof_after =
 							api.proof_recorder().map(|pr| pr.estimate_encoded_size()).unwrap_or(0);
+						let proof_diff = proof_after - proof_before;
 
 						if proof_diff > proof_diff_limit {
 							// The execution of the transaction results in exceeding the limits,
