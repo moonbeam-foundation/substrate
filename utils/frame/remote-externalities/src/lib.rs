@@ -515,6 +515,7 @@ where
 		// first, wait until all threads send a `Terminated` message, in the meantime populate
 		// `pending_ext`.
 		let mut terminated = 0usize;
+		let mut processed = 0usize;
 		let mut batch_failed = false;
 		loop {
 			match rx.next().await.unwrap() {
