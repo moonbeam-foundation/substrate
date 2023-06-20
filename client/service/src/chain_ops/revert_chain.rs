@@ -33,7 +33,7 @@ where
 	C: UsageProvider<B>,
 	BA: Backend<B>,
 {
-	let reverted = backend.revert(blocks, false)?;
+	let reverted = backend.revert(blocks, true)?;
 	let info = client.usage_info().chain;
 
 	if reverted.0.is_zero() {
