@@ -123,10 +123,13 @@ where
 		let substitutes = substitutes
 			.into_iter()
 			.map(|(block_number, code)| {
+				let mut hasher = DefaultHasher::new();
+				hasher.write(&code);
+				let hash = hasher.finish().to_ne_bytes().to_vec();
 				let runtime_code = RuntimeCode {
 					code_fetcher: &WrappedRuntimeCode((&code).into()),
 					heap_pages: None,
-					hash: Vec::new(),
+					hash,
 				};
 				let version = Self::runtime_version(&executor, &runtime_code)?;
 				let spec_version = version.spec_version;
