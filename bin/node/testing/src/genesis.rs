@@ -50,6 +50,7 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
 		system: SystemConfig {
 			code: code.map(|x| x.to_vec()).unwrap_or_else(|| wasm_binary_unwrap().to_vec()),
 		},
+		identity: Default::default(),
 		indices: IndicesConfig { indices: vec![] },
 		balances: BalancesConfig { balances: endowed },
 		session: SessionConfig {
