@@ -21,8 +21,9 @@
 use crate::keyring::*;
 use kitchensink_runtime::{
 	constants::currency::*, wasm_binary_unwrap, AccountId, AssetsConfig, BabeConfig,
-	BalancesConfig, GenesisConfig, GluttonConfig, GrandpaConfig, IndicesConfig, SessionConfig,
-	SocietyConfig, StakerStatus, StakingConfig, SystemConfig, BABE_GENESIS_EPOCH_CONFIG,
+	BalancesConfig, GenesisConfig, GluttonConfig, GrandpaConfig, IdentityConfig, IndicesConfig,
+	SessionConfig, SocietyConfig, StakerStatus, StakingConfig, SystemConfig,
+	BABE_GENESIS_EPOCH_CONFIG,
 };
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::Perbill;
@@ -50,7 +51,9 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
 		system: SystemConfig {
 			code: code.map(|x| x.to_vec()).unwrap_or_else(|| wasm_binary_unwrap().to_vec()),
 		},
-		identity: Default::default(),
+		identity: IdentityConfig {
+			identities: vec![(alice(), "Alice".to_string()), (bob(), "Bob".to_string())],
+		},
 		indices: IndicesConfig { indices: vec![] },
 		balances: BalancesConfig { balances: endowed },
 		session: SessionConfig {
